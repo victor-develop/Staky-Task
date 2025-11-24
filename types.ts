@@ -1,11 +1,12 @@
 
 export type TaskStatus = 'pending' | 'completed';
-export type SubStackStatus = 'active' | 'frozen' | 'completed' | 'pending';
-export type ViewMode = 'HOME' | 'TREE' | 'STASH' | 'LOGS';
+export type SubStackStatus = 'active' | 'frozen' | 'completed' | 'pending' | 'archived';
+export type ViewMode = 'HOME' | 'TREE' | 'STASH' | 'LOGS' | 'ARCHIVE';
 
 export interface Task {
   id: string;
   name: string;
+  parentId?: string; // ID of the task this task is explicitly breaking down
   status: TaskStatus;
   createdAt: number;
   completedAt?: number;
@@ -28,7 +29,7 @@ export interface ParentTask {
 export interface LogEntry {
   id: string;
   timestamp: number;
-  type: 'add' | 'modify' | 'status_change' | 'stash' | 'freeze';
+  type: 'add' | 'modify' | 'status_change' | 'stash' | 'freeze' | 'archive';
   message: string;
 }
 
@@ -40,4 +41,4 @@ export interface StashItem {
 }
 
 // Helper type for our Input Modal
-export type InputMode = 'NONE' | 'ADD_SUBSTACK' | 'PUSH_TASK' | 'QUEUE_TASK' | 'STASH_TASK' | 'RENAME_PARENT';
+export type InputMode = 'NONE' | 'ADD_SUBSTACK' | 'PUSH_TASK' | 'QUEUE_TASK' | 'STASH_TASK' | 'RENAME_PARENT' | 'BREAKDOWN_TASK';

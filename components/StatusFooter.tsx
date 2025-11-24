@@ -14,11 +14,12 @@ const StatusFooter: React.FC<StatusFooterProps> = ({ mode, isCommandMode, onTogg
     <div className="mt-auto pt-2 border-t border-gray-800 text-xs flex justify-between items-center uppercase tracking-wider select-none">
       
       {/* Left: Views */}
-      <div className="flex space-x-4 text-gray-500">
+      <div className="flex space-x-3 text-gray-500">
         <span className={mode === 'HOME' ? 'text-term-fg font-bold' : ''}>[1] Home</span>
         <span className={mode === 'TREE' ? 'text-term-fg font-bold' : ''}>[2] Tree</span>
         <span className={mode === 'STASH' ? 'text-term-fg font-bold' : ''}>[3] Stash</span>
         <span className={mode === 'LOGS' ? 'text-term-fg font-bold' : ''}>[4] Logs</span>
+        <span className={mode === 'ARCHIVE' ? 'text-term-fg font-bold' : ''}>[5] Archive</span>
       </div>
 
       {/* Center: Mode Toggle */}
@@ -50,6 +51,7 @@ const StatusFooter: React.FC<StatusFooterProps> = ({ mode, isCommandMode, onTogg
             <>
                 <span><span className="text-term-green font-bold">N</span>ew</span>
                 <span><span className="text-term-green font-bold">I</span>nsert</span>
+                <span><span className="text-term-green font-bold">O</span>pen</span>
                 <span><span className="text-term-green font-bold">A</span>ppend</span>
                 <span><span className="text-term-green font-bold">S</span>tash</span>
                 <span><span className="text-term-green font-bold">F</span>reeze</span>

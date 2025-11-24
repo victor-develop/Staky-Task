@@ -1,14 +1,15 @@
 import React from 'react';
 import { ParentTask, SubStack, Task } from '../types';
-import { Lock, Circle, Archive, Play, Check } from 'lucide-react';
+import { Lock, Circle, Archive, Play, Check, Snowflake } from 'lucide-react';
 
 interface TreeViewProps {
   parentTask: ParentTask;
   onFreezeToggle: (stackId: string) => void;
   onActivateStack: (stackId: string) => void;
+  onArchiveStack: (stackId: string) => void;
 }
 
-const TreeView: React.FC<TreeViewProps> = ({ parentTask, onFreezeToggle, onActivateStack }) => {
+const TreeView: React.FC<TreeViewProps> = ({ parentTask, onFreezeToggle, onActivateStack, onArchiveStack }) => {
   
   const renderTaskNode = (task: Task, isTop: boolean, isLast: boolean) => {
     return (
@@ -32,6 +33,9 @@ const TreeView: React.FC<TreeViewProps> = ({ parentTask, onFreezeToggle, onActiv
     const isFrozen = stack.status === 'frozen';
     const isCompleted = stack.status === 'completed';
 
+    // Do not render archived stacks in the main tree view
+    if (stack.status === 'archived') return null;
+
     let statusColor = 'text-gray-500';
     if (isActive) statusColor = 'text-term-blue';
     if (isFrozen) statusColor = 'text-term-yellow';
@@ -45,51 +49,69 @@ const TreeView: React.FC<TreeViewProps> = ({ parentTask, onFreezeToggle, onActiv
         {/* Substack Header */}
         <div className="flex items-center mb-2 -ml-6 group">
           <button 
-             onClick={() => !isCompleted && onActivateStack(stack.id)}
-             disabled={isCompleted}
+             onClick={() => !isCompleted && !isFrozen && onActivateStack(stack.id)}
+             disabled={isCompleted || isFrozen}
              className={`
                 w-6 h-6 flex items-center justify-center rounded-sm text-xs font-bold mr-2 border bg-gray-900 transition-colors
                 ${isActive ? 'border-term-blue text-term-blue' : 'border-gray-700 text-gray-600 hover:border-gray-500'}
-                ${isCompleted ? 'border-term-green text-term-green cursor-default' : 'cursor-pointer'}
+                ${isCompleted ? 'border-term-green text-term-green cursor-default' : ''}
+                ${isFrozen ? 'border-term-yellow text-term-yellow cursor-default' : ''}
              `}
           >
-             {isActive ? <Play size={10} fill="currentColor" /> : isCompleted ? <Check size={12} /> : index + 1}
+             {isActive ? <Play size={10} fill="currentColor" /> : isCompleted ? <Check size={12} /> : isFrozen ? <Snowflake size={12} /> : index + 1}
           </button>
           
           <div className="flex-1 flex items-center justify-between pr-4">
             <span 
-                onClick={() => !isCompleted && onActivateStack(stack.id)}
-                className={`font-bold ${statusColor} text-lg ${!isCompleted ? 'cursor-pointer hover:underline' : ''}`}
+                onClick={() => !isCompleted && !isFrozen && onActivateStack(stack.id)}
+                className={`font-bold ${statusColor} text-lg ${!isCompleted && !isFrozen ? 'cursor-pointer hover:underline' : ''}`}
             >
-                {stack.name} {isActive && <span className="text-xs ml-2 bg-term-blue text-black px-1 rounded">CURRENT</span>}
+                {stack.name} 
+                {isActive && <span className="text-xs ml-2 bg-term-blue text-black px-1 rounded">CURRENT</span>}
+                {isFrozen && <span className="text-xs ml-2 bg-term-yellow text-black px-1 rounded">FROZEN</span>}
             </span>
             <div className="flex items-center space-x-3">
               <span className="text-xs text-gray-600 font-mono">
                  {isCompleted ? 'DONE' : `${stack.tasks.length} tasks`}
               </span>
+              
               {/* Controls */}
-              {!isCompleted && (
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); onFreezeToggle(stack.id); }}
-                    className="hover:text-white text-gray-600"
-                    title={isFrozen ? "Unfreeze" : "Freeze"}
-                  >
-                    {isFrozen ? <Archive size={14} /> : <Lock size={14} />}
-                  </button>
-              )}
+              <div className="flex items-center space-x-2">
+                {!isCompleted && (
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); onFreezeToggle(stack.id); }}
+                        className="hover:text-white text-gray-600 p-1"
+                        title={isFrozen ? "Unfreeze" : "Freeze"}
+                    >
+                        {isFrozen ? <Snowflake size={14} className="text-term-yellow" /> : <Lock size={14} />}
+                    </button>
+                )}
+                
+                {isCompleted && (
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); onArchiveStack(stack.id); }}
+                        className="hover:text-white text-gray-600 p-1 hover:bg-gray-800 rounded"
+                        title="Archive Stack"
+                    >
+                        <Archive size={14} />
+                    </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
 
         {/* Tasks */}
-        <div className="pl-2">
-          {displayTasks.length === 0 && !isCompleted && (
-             <div className="text-gray-700 text-sm italic ml-6">Empty stack</div>
-          )}
-          {displayTasks.map((task, i) => 
-             renderTaskNode(task, i === 0 && !isFrozen && !isCompleted, i === displayTasks.length - 1)
-          )}
-        </div>
+        {!isFrozen && (
+            <div className="pl-2">
+            {displayTasks.length === 0 && !isCompleted && (
+                <div className="text-gray-700 text-sm italic ml-6">Empty stack</div>
+            )}
+            {displayTasks.map((task, i) => 
+                renderTaskNode(task, i === 0 && !isCompleted, i === displayTasks.length - 1)
+            )}
+            </div>
+        )}
       </div>
     );
   };
@@ -104,9 +126,9 @@ const TreeView: React.FC<TreeViewProps> = ({ parentTask, onFreezeToggle, onActiv
       </div>
 
       <div className="pb-20">
-        {parentTask.subStacks.length === 0 ? (
+        {parentTask.subStacks.filter(s => s.status !== 'archived').length === 0 ? (
             <div className="text-center text-gray-600 mt-20">
-                No sub-stacks defined. Press 'n' to start planning.
+                No active sub-stacks. Press 'n' to start planning.
             </div>
         ) : (
             parentTask.subStacks.map((stack, idx) => renderSubStack(stack, idx))
