@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>StackTree CLI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              mono: ['Menlo', 'Monaco', 'Courier New', 'monospace'],
+            },
+            colors: {
+              term: {
+                bg: '#0c0c0c',
+                fg: '#cccccc',
+                green: '#22c55e',
+                blue: '#3b82f6',
+                yellow: '#eab308',
+                red: '#ef4444',
+                gray: '#3f3f46',
+                cursor: '#22c55e' // Blinking cursor color
+              }
+            },
+            animation: {
+              'blink': 'blink 1s step-end infinite',
+            },
+            keyframes: {
+              blink: {
+                '0%, 100%': { opacity: '1' },
+                '50%': { opacity: '0' },
+              }
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      body {
+        background-color: #111;
+        margin: 0;
+        overflow: hidden;
+      }
+      /* Custom scrollbar for terminal feel */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #18181b;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #3f3f46;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #52525b;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.554.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "date-fns": "https://aistudiocdn.com/date-fns@^4.1.0"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
