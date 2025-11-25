@@ -1,29 +1,52 @@
 
 import React from 'react';
 import { ParentTask, SubStack, Task } from '../types';
-import { Lock, Circle, Archive, Play, Check, Snowflake } from 'lucide-react';
+import { Lock, Circle, Archive, Play, Check, Snowflake, MousePointer2 } from 'lucide-react';
 
 interface TreeViewProps {
   parentTask: ParentTask;
+  focusedTaskId: string | null;
   onFreezeToggle: (stackId: string) => void;
   onActivateStack: (stackId: string) => void;
   onArchiveStack: (stackId: string) => void;
 }
 
-const TreeView: React.FC<TreeViewProps> = ({ parentTask, onFreezeToggle, onActivateStack, onArchiveStack }) => {
+const TreeView: React.FC<TreeViewProps> = ({ parentTask, focusedTaskId, onFreezeToggle, onActivateStack, onArchiveStack }) => {
   
   const renderTaskNode = (task: Task, isTop: boolean, isLast: boolean, isStackActive: boolean) => {
+    const isFocused = task.id === focusedTaskId;
+
     return (
-      <div key={task.id} className="flex items-center group">
-        <span className="text-gray-600 mr-2 font-mono">
+      <div key={task.id} className="flex items-center group relative">
+        {/* Connection Line */}
+        <span className="text-gray-800 mr-2 font-mono">
           {isLast ? '└──' : '├──'}
         </span>
+
+        {/* Task Content */}
         <span className={`
-          px-2 py-0.5 rounded text-sm font-mono flex items-center space-x-2
-          ${isTop && isStackActive ? 'bg-term-green/10 text-term-green border border-term-green/30' : 'text-gray-500'}
+          px-2 py-0.5 rounded text-sm font-mono flex items-center space-x-2 border transition-all duration-200
+          ${isFocused 
+              ? 'bg-gray-900 border-term-green text-term-fg shadow-[0_0_10px_rgba(34,197,94,0.1)] z-10' 
+              : 'border-transparent text-gray-500'}
+          ${isTop && isStackActive && !isFocused ? 'text-term-blue' : ''}
         `}>
           <span>{task.name}</span>
-          {isTop && isStackActive && <span className="text-[10px] uppercase border border-term-green px-1 rounded-sm">Active</span>}
+          
+          {/* Badge: User Focus */}
+          {isFocused && (
+              <span className="flex items-center text-[10px] uppercase bg-term-green text-black font-bold px-1 rounded-sm ml-2">
+                  <MousePointer2 size={8} className="mr-1" /> Selected
+              </span>
+          )}
+
+          {/* Badge: Structural Stack Top (Only show if stack is active) */}
+          {isTop && isStackActive && (
+              <span className={`text-[10px] uppercase border px-1 rounded-sm ml-2 
+                  ${isFocused ? 'border-term-blue text-term-blue' : 'border-term-blue bg-term-blue/10 text-term-blue'}`}>
+                  Stack Top
+              </span>
+          )}
         </span>
       </div>
     );
@@ -42,7 +65,9 @@ const TreeView: React.FC<TreeViewProps> = ({ parentTask, onFreezeToggle, onActiv
     if (isFrozen) statusColor = 'text-term-yellow';
     if (isCompleted) statusColor = 'text-term-green';
 
-    // Stack tasks are reversed for display (Top of stack = first visual child)
+    // Stack tasks are reversed for display in HOME, but standard TREE order (Top first usually, or bottom first?)
+    // A stack grows UP. In tree view, usually you list items top-down. 
+    // Let's render the tasks in reverse order (Top of stack first) so "Stack Top" appears at the top of the list.
     const displayTasks = [...stack.tasks].reverse();
 
     return (
@@ -108,8 +133,11 @@ const TreeView: React.FC<TreeViewProps> = ({ parentTask, onFreezeToggle, onActiv
             {displayTasks.length === 0 && !isCompleted && (
                 <div className="text-gray-700 text-sm italic ml-6">Empty stack</div>
             )}
+            {/* 
+                displayTasks[0] is the TOP of the stack (Last In)
+            */}
             {displayTasks.map((task, i) => 
-                renderTaskNode(task, i === 0 && !isCompleted, i === displayTasks.length - 1, isActive)
+                renderTaskNode(task, i === 0, i === displayTasks.length - 1, isActive)
             )}
             </div>
         )}

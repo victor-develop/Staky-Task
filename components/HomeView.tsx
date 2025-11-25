@@ -1,7 +1,7 @@
 
 import React, { useMemo } from 'react';
 import { ParentTask, SubStack, Task } from '../types';
-import { CornerDownRight, Layers, Play } from 'lucide-react';
+import { Layers } from 'lucide-react';
 
 interface HomeViewProps {
   parentTask: ParentTask;
@@ -48,6 +48,9 @@ const HomeView: React.FC<HomeViewProps> = ({ parentTask, activeSubStack, focused
   // Reverse tasks for display: Top of Stack (Current) -> Bottom of Stack (Root)
   const displayTasks = [...tasks].reverse();
 
+  // Calculate step size for indentation
+  const INDENT_STEP_REM = 2.5;
+
   return (
     <div className="flex flex-col h-full justify-between items-center py-8 animate-in fade-in duration-300 overflow-hidden">
       
@@ -72,39 +75,49 @@ const HomeView: React.FC<HomeViewProps> = ({ parentTask, activeSubStack, focused
              </div>
         )}
 
-        <div className="flex flex-col items-start w-full space-y-1 pb-10">
+        <div className="flex flex-col items-start w-full space-y-3 pb-10 pt-4">
             {displayTasks.map((t, idx) => {
                 const isFocused = t.id === focusedTaskId; // The one user selected (and "active")
                 const depth = taskDepths.get(t.id) || 0;
                 
-                // Indentation: 2rem per depth level
-                const indentStyle = { marginLeft: `${depth * 2.5}rem` };
+                // Indentation
+                const marginLeft = `${depth * INDENT_STEP_REM}rem`;
                 
                 return (
                     <div 
                         key={t.id} 
-                        style={indentStyle} 
+                        style={{ marginLeft }} 
                         onClick={() => onTaskClick(t.id)}
                         className="relative group w-full max-w-2xl transition-all duration-300 cursor-pointer"
                     >
                         
-                        {/* Visual Branch Line for indented items */}
+                        {/* Structural Connector: The "Hook" Downwards */}
                         {depth > 0 && (
-                            <div className="absolute -left-6 top-1/2 -translate-y-1/2 text-gray-800">
-                                <CornerDownRight size={20} strokeWidth={1.5} />
+                            <div 
+                                className="absolute top-1/2 border-l-2 border-t-2 border-gray-800 rounded-tl-xl pointer-events-none"
+                                style={{
+                                    left: `-${INDENT_STEP_REM}rem`, // Start from the parent's indent level
+                                    width: `${INDENT_STEP_REM}rem`, // Span to the child
+                                    height: '3rem', // Extend DOWN towards the parent row
+                                    transform: 'translateY(0)', // Start at vertical center
+                                    zIndex: 0
+                                }}
+                            >
+                                {/* Optional: A subtle dot at the start to anchor the line to the parent flow */}
+                                <div className="absolute -left-[3px] top-[100%] w-1 h-1 bg-gray-800 rounded-full"></div>
                             </div>
                         )}
 
                         <div className={`
-                            relative flex items-center p-3 rounded border transition-all duration-200
+                            relative flex items-center p-3 rounded border transition-all duration-200 z-10
                             ${isFocused 
-                                ? 'bg-gray-900 border-term-green shadow-[0_0_15px_rgba(34,197,94,0.15)] scale-[1.02] origin-left z-10' 
-                                : 'bg-transparent border-transparent hover:border-gray-800 text-gray-500'}
+                                ? 'bg-gray-900 border-term-green shadow-[0_0_15px_rgba(34,197,94,0.15)] scale-[1.02] origin-left' 
+                                : 'bg-term-bg border-gray-800/50 hover:border-gray-700 text-gray-500'}
                         `}>
                             {/* Status Indicator: Only the focused item pulses/glows green now */}
                             <div className={`
                                 w-2 h-2 rounded-full mr-3 flex-shrink-0 transition-colors
-                                ${isFocused ? 'bg-term-green animate-pulse' : 'bg-gray-700'}
+                                ${isFocused ? 'bg-term-green animate-pulse' : 'bg-gray-800'}
                             `}></div>
 
                             <div className="flex-1">

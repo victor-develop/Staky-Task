@@ -659,6 +659,7 @@ const App: React.FC = () => {
            {viewMode === 'TREE' && (
                 <TreeView 
                     parentTask={parentTask} 
+                    focusedTaskId={focusedTaskId}
                     onFreezeToggle={handleToggleFreeze} 
                     onActivateStack={handleActivateStack}
                     onArchiveStack={handleArchiveStack}
