@@ -1,6 +1,7 @@
+
 import React, { useMemo } from 'react';
 import { ParentTask, SubStack, Task } from '../types';
-import { CornerDownRight, Layers } from 'lucide-react';
+import { CornerDownRight, Layers, Play } from 'lucide-react';
 
 interface HomeViewProps {
   parentTask: ParentTask;
@@ -11,7 +12,7 @@ interface HomeViewProps {
 
 const HomeView: React.FC<HomeViewProps> = ({ parentTask, activeSubStack, focusedTaskId, onTaskClick }) => {
   const tasks = activeSubStack ? activeSubStack.tasks : [];
-  const currentTask = tasks.length > 0 ? tasks[tasks.length - 1] : null;
+  const topTaskId = tasks.length > 0 ? tasks[tasks.length - 1].id : null;
 
   // Calculate Global Progress
   const totalStacks = parentTask.subStacks.length;
@@ -64,7 +65,7 @@ const HomeView: React.FC<HomeViewProps> = ({ parentTask, activeSubStack, focused
       {/* 2. Unified Stack List */}
       <div className="flex-1 w-full max-w-4xl px-4 overflow-y-auto custom-scrollbar relative">
         
-        {!currentTask && (
+        {!topTaskId && (
              <div className="text-center py-20 border-2 border-dashed border-gray-800 rounded-lg opacity-50">
                 <h1 className="text-2xl font-bold text-gray-700 mb-2">STACK EMPTY</h1>
                 <p className="text-gray-500 text-sm">Use <span className="text-term-green font-bold">'N'</span> to create stack<br/>Use <span className="text-term-green font-bold">'I'</span> to insert task</p>
@@ -73,8 +74,7 @@ const HomeView: React.FC<HomeViewProps> = ({ parentTask, activeSubStack, focused
 
         <div className="flex flex-col items-start w-full space-y-1 pb-10">
             {displayTasks.map((t, idx) => {
-                const isCurrent = idx === 0; // The actual running task
-                const isFocused = t.id === focusedTaskId; // The user's cursor
+                const isFocused = t.id === focusedTaskId; // The one user selected (and "active")
                 const depth = taskDepths.get(t.id) || 0;
                 
                 // Indentation: 2rem per depth level
@@ -97,38 +97,35 @@ const HomeView: React.FC<HomeViewProps> = ({ parentTask, activeSubStack, focused
 
                         <div className={`
                             relative flex items-center p-3 rounded border transition-all duration-200
-                            ${isCurrent 
-                                ? 'bg-gray-900 py-5 my-2 scale-[1.02] origin-left' 
-                                : 'bg-transparent hover:bg-gray-900/50'}
                             ${isFocused 
-                                ? 'border-term-blue shadow-[0_0_15px_rgba(59,130,246,0.15)]' 
-                                : isCurrent 
-                                    ? 'border-term-green shadow-[0_0_10px_rgba(34,197,94,0.1)]' 
-                                    : 'border-transparent hover:border-gray-800 text-gray-500'}
+                                ? 'bg-gray-900 border-term-green shadow-[0_0_15px_rgba(34,197,94,0.15)] scale-[1.02] origin-left z-10' 
+                                : 'bg-transparent border-transparent hover:border-gray-800 text-gray-500'}
                         `}>
-                            {/* Status Indicator */}
+                            {/* Status Indicator: Only the focused item pulses/glows green now */}
                             <div className={`
                                 w-2 h-2 rounded-full mr-3 flex-shrink-0 transition-colors
-                                ${isCurrent ? 'bg-term-green animate-pulse' : isFocused ? 'bg-term-blue' : 'bg-gray-700'}
+                                ${isFocused ? 'bg-term-green animate-pulse' : 'bg-gray-700'}
                             `}></div>
 
                             <div className="flex-1">
-                                {isCurrent ? (
-                                    <h1 className="text-2xl md:text-3xl font-bold text-term-fg leading-none tracking-tight break-words">
+                                <div className="flex items-center justify-between">
+                                    <h1 className={`font-mono font-medium flex items-center
+                                        ${isFocused ? 'text-2xl md:text-3xl font-bold text-term-fg' : 'text-base text-gray-500'}
+                                    `}>
                                         {t.name}
-                                        {/* Blinking cursor only if it's also focused */}
-                                        {isFocused && <span className="inline-block w-2 h-6 ml-2 bg-term-blue animate-blink align-middle"></span>}
+                                        {/* Cursor */}
+                                        {isFocused && <span className="inline-block w-2 h-6 ml-2 bg-term-green animate-blink align-middle"></span>}
                                     </h1>
-                                ) : (
-                                    <div className={`text-base font-mono font-medium flex items-center ${isFocused ? 'text-term-fg' : ''}`}>
-                                        {t.name}
-                                        {currentTask?.parentId === t.id && (
-                                            <span className="ml-3 text-[10px] uppercase bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded border border-gray-700">
-                                                Parent
+                                    
+                                    {/* Badges */}
+                                    <div className="flex space-x-2">
+                                        {t.parentId && isFocused && (
+                                            <span className="text-[10px] uppercase bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded border border-gray-700">
+                                                Subtask
                                             </span>
                                         )}
                                     </div>
-                                )}
+                                </div>
                             </div>
                         </div>
                     </div>

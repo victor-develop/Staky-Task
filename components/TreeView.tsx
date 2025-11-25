@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { ParentTask, SubStack, Task } from '../types';
 import { Lock, Circle, Archive, Play, Check, Snowflake } from 'lucide-react';
@@ -11,7 +12,7 @@ interface TreeViewProps {
 
 const TreeView: React.FC<TreeViewProps> = ({ parentTask, onFreezeToggle, onActivateStack, onArchiveStack }) => {
   
-  const renderTaskNode = (task: Task, isTop: boolean, isLast: boolean) => {
+  const renderTaskNode = (task: Task, isTop: boolean, isLast: boolean, isStackActive: boolean) => {
     return (
       <div key={task.id} className="flex items-center group">
         <span className="text-gray-600 mr-2 font-mono">
@@ -19,10 +20,10 @@ const TreeView: React.FC<TreeViewProps> = ({ parentTask, onFreezeToggle, onActiv
         </span>
         <span className={`
           px-2 py-0.5 rounded text-sm font-mono flex items-center space-x-2
-          ${isTop ? 'bg-term-green/10 text-term-green border border-term-green/30' : 'text-gray-500'}
+          ${isTop && isStackActive ? 'bg-term-green/10 text-term-green border border-term-green/30' : 'text-gray-500'}
         `}>
           <span>{task.name}</span>
-          {isTop && <span className="text-[10px] uppercase border border-term-green px-1 rounded-sm">Active</span>}
+          {isTop && isStackActive && <span className="text-[10px] uppercase border border-term-green px-1 rounded-sm">Active</span>}
         </span>
       </div>
     );
@@ -108,7 +109,7 @@ const TreeView: React.FC<TreeViewProps> = ({ parentTask, onFreezeToggle, onActiv
                 <div className="text-gray-700 text-sm italic ml-6">Empty stack</div>
             )}
             {displayTasks.map((task, i) => 
-                renderTaskNode(task, i === 0 && !isCompleted, i === displayTasks.length - 1)
+                renderTaskNode(task, i === 0 && !isCompleted, i === displayTasks.length - 1, isActive)
             )}
             </div>
         )}

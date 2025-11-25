@@ -1,7 +1,7 @@
 
 export type TaskStatus = 'pending' | 'completed';
 export type SubStackStatus = 'active' | 'frozen' | 'completed' | 'pending' | 'archived';
-export type ViewMode = 'HOME' | 'TREE' | 'STASH' | 'LOGS' | 'ARCHIVE';
+export type ViewMode = 'HOME' | 'TREE' | 'STASH' | 'LOGS' | 'ARCHIVE' | 'SYSTEM';
 
 export interface Task {
   id: string;

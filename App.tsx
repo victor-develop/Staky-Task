@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import TerminalWindow from './components/TerminalWindow';
 import StatusFooter from './components/StatusFooter';
 import InputModal from './components/InputModal';
@@ -8,8 +8,10 @@ import TreeView from './components/TreeView';
 import LogView from './components/LogView';
 import StashView from './components/StashView';
 import ArchiveView from './components/ArchiveView';
+import SystemView from './components/SystemView';
 import { ParentTask, SubStack, Task, LogEntry, ViewMode, StashItem, InputMode, TaskStatus, SubStackStatus } from './types';
 import { generateId } from './utils';
+import { saveAppData, loadAppData, exportDataFromStorage, importDataToStorage, downloadFile, clearAppData } from './storage';
 
 // Initial State
 const INITIAL_PARENT: ParentTask = {
@@ -25,12 +27,81 @@ const App: React.FC = () => {
   const [stash, setStash] = useState<StashItem[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>('HOME');
   const [isCommandMode, setIsCommandMode] = useState(true);
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [lastSaveTime, setLastSaveTime] = useState<number>(Date.now());
   
   // Navigation State
   const [focusedTaskId, setFocusedTaskId] = useState<string | null>(null);
   
   // Input Modal State
   const [inputMode, setInputMode] = useState<InputMode>('NONE');
+
+  // --- PERSISTENCE ---
+
+  // 1. Load on Mount
+  useEffect(() => {
+      const init = async () => {
+          const data = await loadAppData();
+          if (data) {
+              setParentTask(data.parentTask);
+              setLogs(data.logs);
+              setStash(data.stash);
+          }
+          setIsLoaded(true);
+      };
+      init();
+  }, []);
+
+  // 2. Save on Change (Data Flow)
+  useEffect(() => {
+      if (!isLoaded) return;
+      const save = async () => {
+          await saveAppData({ parentTask, logs, stash });
+          setLastSaveTime(Date.now());
+      };
+      // Debounce slightly to prevent thrashing
+      const timer = setTimeout(save, 500);
+      return () => clearTimeout(timer);
+  }, [parentTask, logs, stash, isLoaded]);
+
+  // --- EXPORT / IMPORT HANDLERS ---
+  
+  const handleSystemExport = async () => {
+      const json = await exportDataFromStorage();
+      const filename = `stacktree_backup_${new Date().toISOString().slice(0,10)}.json`;
+      downloadFile(filename, json);
+  };
+
+  const handleSystemImport = async (file: File) => {
+      return new Promise<void>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = async (e) => {
+              try {
+                  const content = e.target?.result as string;
+                  const data = await importDataToStorage(content);
+                  
+                  // Update State
+                  setParentTask(data.parentTask);
+                  setLogs(data.logs);
+                  setStash(data.stash);
+                  resolve();
+              } catch (err) {
+                  reject(err);
+              }
+          };
+          reader.onerror = reject;
+          reader.readAsText(file);
+      });
+  };
+
+  const handleSystemReset = async () => {
+      await clearAppData();
+      setParentTask(INITIAL_PARENT);
+      setLogs([]);
+      setStash([]);
+  };
+
+  // --- LOGIC ---
   
   // Derived State: Active SubStack
   const getActiveSubStack = useCallback((): SubStack | undefined => {
@@ -53,6 +124,44 @@ const App: React.FC = () => {
           setFocusedTaskId(null);
       }
   }, [activeSubStack?.id, activeSubStack?.tasks.length]);
+
+  // --- HELPER: Find Insertion Index ---
+  // Skips over descendants to ensure new task is placed ABOVE the entire subtree of the focused task.
+  const findInsertionIndexForInterrupt = (tasks: Task[], focusIndex: number): number => {
+      if (focusIndex === -1) return tasks.length;
+      
+      const focusTask = tasks[focusIndex];
+      // We want to skip any task that is a descendant of the focused task
+      // (Visual: They are "above" the focused task in the list, "after" in the array)
+      
+      // Build a quick map for parent lookup
+      const taskMap = new Map<string, Task>();
+      tasks.forEach(t => taskMap.set(t.id, t));
+
+      const isDescendant = (childId: string, potentialAncestorId: string): boolean => {
+          let curr = taskMap.get(childId);
+          while (curr && curr.parentId) {
+              if (curr.parentId === potentialAncestorId) return true;
+              curr = taskMap.get(curr.parentId);
+          }
+          return false;
+      };
+      
+      let i = focusIndex + 1;
+      while (i < tasks.length) {
+          const t = tasks[i];
+          // If t is a child of focusTask (directly or indirectly), we skip it
+          // so that we insert AFTER the whole family tree.
+          // This makes the new task appear ABOVE the family tree in the LIFO visual list.
+          if (t.parentId === focusTask.id || isDescendant(t.id, focusTask.id)) {
+              i++;
+          } else {
+              // Found a task that is NOT a descendant (sibling or parent or unrelated)
+              break;
+          }
+      }
+      return i;
+  };
 
   // --- ACTIONS ---
 
@@ -100,12 +209,15 @@ const App: React.FC = () => {
           const tasks = s.tasks;
           const focusIndex = tasks.findIndex(t => t.id === focusedTaskId);
           
-          // Insert Logic: "Interrupt" -> Insert ABOVE the focused task.
-          const insertIndex = focusIndex !== -1 ? focusIndex + 1 : tasks.length;
+          // Insert Logic: "Interrupt" -> Insert ABOVE the focused task AND its visual children.
+          // This prevents the new task from getting "stuck" under the subtasks visually.
+          const insertIndex = findInsertionIndexForInterrupt(tasks, focusIndex);
 
           // Context Logic: Inherit parent from focused task (Sibling)
           const focusTask = focusIndex !== -1 ? tasks[focusIndex] : null;
           const topTask = tasks.length > 0 ? tasks[tasks.length - 1] : null;
+          
+          // If we have focus, we inherit its parent (Sibling). If no focus, top task's parent.
           const inheritedParentId = focusTask ? focusTask.parentId : (topTask ? topTask.parentId : undefined);
 
           const newTask = { 
@@ -140,8 +252,8 @@ const App: React.FC = () => {
           const tasks = s.tasks;
           const focusIndex = tasks.findIndex(t => t.id === focusedTaskId);
           
-          // Breakdown Logic: Insert ABOVE focused task (it becomes a prerequisite/child)
-          const insertIndex = focusIndex !== -1 ? focusIndex + 1 : tasks.length;
+          // Breakdown Logic: Insert ABOVE focused task branch (it becomes a prerequisite/child)
+          const insertIndex = findInsertionIndexForInterrupt(tasks, focusIndex);
           
           // Parent is the FOCUSED task (or top if none)
           const targetTask = focusIndex !== -1 ? tasks[focusIndex] : (tasks.length > 0 ? tasks[tasks.length - 1] : null);
@@ -177,7 +289,7 @@ const App: React.FC = () => {
                 const tasks = s.tasks;
                 const focusIndex = tasks.findIndex(t => t.id === focusedTaskId);
                 
-                // Queue Logic: Insert BELOW focused task.
+                // Queue Logic: Insert BELOW focused task (Before it in array index)
                 const effectiveFocusIndex = focusIndex !== -1 ? focusIndex : Math.max(0, tasks.length - 1);
                 
                 // If array is empty, index 0.
@@ -212,24 +324,36 @@ const App: React.FC = () => {
   const handleCompleteTask = () => {
     if (!activeSubStack) return;
     
-    // Always complete the TOP task (Execution Head), regardless of focus
-    const currentTask = activeSubStack.tasks[activeSubStack.tasks.length - 1];
-    if (!currentTask) return;
+    // Modification: If focused task is NOT the top task, user probably wants to complete THAT specific task.
+    // Standard stack behavior is pop top. But UI allows selection. 
+    // To respect "newly focused one should be the running one", we allow completing the focus.
+    
+    // Default to Top
+    let taskToCompleteId = activeSubStack.tasks[activeSubStack.tasks.length - 1]?.id;
+
+    // If focus is valid and in this stack, use focus
+    if (focusedTaskId && activeSubStack.tasks.some(t => t.id === focusedTaskId)) {
+        taskToCompleteId = focusedTaskId;
+    }
+
+    if (!taskToCompleteId) return;
+    const taskName = activeSubStack.tasks.find(t => t.id === taskToCompleteId)?.name;
 
     setParentTask(prev => {
       const newStacks = prev.subStacks.map(s => {
         if (s.id === activeSubStack.id) {
-          const remainingTasks = s.tasks.slice(0, -1);
+          // Remove the task by ID
+          const newTasks = s.tasks.filter(t => t.id !== taskToCompleteId);
           let newStatus: SubStackStatus = s.status;
           
-          if (remainingTasks.length === 0) {
+          if (newTasks.length === 0) {
             newStatus = 'completed';
             addLog('status_change', `Stack completed: ${s.name}`);
           }
 
           return {
             ...s,
-            tasks: remainingTasks,
+            tasks: newTasks,
             status: newStatus
           };
         }
@@ -247,7 +371,7 @@ const App: React.FC = () => {
       
       return { ...prev, subStacks: newStacks };
     });
-    addLog('status_change', `Completed task: ${currentTask.name}`);
+    if (taskName) addLog('status_change', `Completed task: ${taskName}`);
   };
 
   const handleStashTask = (name: string) => {
@@ -461,6 +585,7 @@ const App: React.FC = () => {
       if (e.key === '3') setViewMode('STASH');
       if (e.key === '4') setViewMode('LOGS');
       if (e.key === '5') setViewMode('ARCHIVE');
+      if (e.key === '6') setViewMode('SYSTEM');
 
       switch (e.key.toLowerCase()) {
         case 'n': 
@@ -554,6 +679,14 @@ const App: React.FC = () => {
                 archivedStacks={parentTask.subStacks.filter(s => s.status === 'archived')}
                 onRestore={handleRestoreArchive}
              />
+           )}
+           {viewMode === 'SYSTEM' && (
+              <SystemView 
+                 onExport={handleSystemExport}
+                 onImport={handleSystemImport}
+                 onReset={handleSystemReset}
+                 lastSaveTime={lastSaveTime}
+              />
            )}
         </div>
 

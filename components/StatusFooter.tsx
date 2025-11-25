@@ -20,6 +20,7 @@ const StatusFooter: React.FC<StatusFooterProps> = ({ mode, isCommandMode, onTogg
         <span className={mode === 'STASH' ? 'text-term-fg font-bold' : ''}>[3] Stash</span>
         <span className={mode === 'LOGS' ? 'text-term-fg font-bold' : ''}>[4] Logs</span>
         <span className={mode === 'ARCHIVE' ? 'text-term-fg font-bold' : ''}>[5] Archive</span>
+        <span className={mode === 'SYSTEM' ? 'text-term-fg font-bold' : ''}>[6] System</span>
       </div>
 
       {/* Center: Mode Toggle */}
