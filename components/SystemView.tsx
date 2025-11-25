@@ -1,7 +1,5 @@
-
 import React, { useRef, useState } from 'react';
-import { Download, Upload, Trash2, HardDrive, AlertTriangle, RefreshCw } from 'lucide-react';
-import { formatDate } from '../utils';
+import { Download, Upload, Trash2, HardDrive, RefreshCw } from 'lucide-react';
 
 interface SystemViewProps {
   onExport: () => Promise<void>;
@@ -50,11 +48,13 @@ const SystemView: React.FC<SystemViewProps> = ({ onExport, onImport, onReset, la
   };
 
   const handleResetClick = async () => {
-      if (!confirm("ARE YOU SURE? This will wipe all data irrevocably.")) return;
-      setStatus('LOADING');
-      await onReset();
-      setStatus('SUCCESS');
-      setMsg('System reset complete.');
+      // Logic delegated to App.tsx via onReset prop to show custom modal
+      try {
+          await onReset();
+          // We might not reach here if app resets completely
+      } catch (err) {
+          console.error("Reset request failed:", err);
+      }
   };
 
   return (

@@ -1,8 +1,8 @@
-
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import TerminalWindow from './components/TerminalWindow';
 import StatusFooter from './components/StatusFooter';
 import InputModal from './components/InputModal';
+import PopupModal, { ModalType } from './components/PopupModal'; // IMPORT MODAL
 import HomeView from './components/HomeView';
 import TreeView from './components/TreeView';
 import LogView from './components/LogView';
@@ -35,6 +35,53 @@ const App: React.FC = () => {
   
   // Input Modal State
   const [inputMode, setInputMode] = useState<InputMode>('NONE');
+
+  // --- MODAL STATE ---
+  const [modalConfig, setModalConfig] = useState<{
+    isOpen: boolean;
+    type: ModalType;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    onCancel: () => void;
+  }>({
+    isOpen: false,
+    type: 'ALERT',
+    title: '',
+    message: '',
+    onConfirm: () => {},
+    onCancel: () => {}
+  });
+
+  // --- MODAL HELPERS ---
+  const closeModal = () => {
+    setModalConfig(prev => ({ ...prev, isOpen: false }));
+  };
+
+  const showAlert = (title: string, message: string) => {
+    setModalConfig({
+      isOpen: true,
+      type: 'ALERT',
+      title,
+      message,
+      onConfirm: closeModal,
+      onCancel: closeModal
+    });
+  };
+
+  const showConfirm = (title: string, message: string, onConfirmAction: () => void) => {
+    setModalConfig({
+      isOpen: true,
+      type: 'CONFIRM',
+      title,
+      message,
+      onConfirm: () => {
+        onConfirmAction();
+        closeModal();
+      },
+      onCancel: closeModal
+    });
+  };
 
   // --- PERSISTENCE ---
 
@@ -94,11 +141,24 @@ const App: React.FC = () => {
       });
   };
 
-  const handleSystemReset = async () => {
-      await clearAppData();
-      setParentTask(INITIAL_PARENT);
-      setLogs([]);
-      setStash([]);
+  // Triggered by SystemView, opens Modal
+  const handleSystemResetRequest = async () => {
+      showConfirm(
+        "SYSTEM RESET WARNING", 
+        "ARE YOU SURE? This will wipe all data irrevocably.\nThis action cannot be undone.",
+        async () => {
+            await clearAppData();
+            setParentTask({
+                id: 'root',
+                name: 'New Project',
+                subStacks: []
+            });
+            setLogs([]);
+            setStash([]);
+            setFocusedTaskId(null);
+            addLog('status_change', 'System Factory Reset performed');
+        }
+      );
   };
 
   // --- LOGIC ---
@@ -126,15 +186,10 @@ const App: React.FC = () => {
   }, [activeSubStack?.id, activeSubStack?.tasks.length]);
 
   // --- HELPER: Find Insertion Index ---
-  // Skips over descendants to ensure new task is placed ABOVE the entire subtree of the focused task.
   const findInsertionIndexForInterrupt = (tasks: Task[], focusIndex: number): number => {
       if (focusIndex === -1) return tasks.length;
       
       const focusTask = tasks[focusIndex];
-      // We want to skip any task that is a descendant of the focused task
-      // (Visual: They are "above" the focused task in the list, "after" in the array)
-      
-      // Build a quick map for parent lookup
       const taskMap = new Map<string, Task>();
       tasks.forEach(t => taskMap.set(t.id, t));
 
@@ -150,13 +205,9 @@ const App: React.FC = () => {
       let i = focusIndex + 1;
       while (i < tasks.length) {
           const t = tasks[i];
-          // If t is a child of focusTask (directly or indirectly), we skip it
-          // so that we insert AFTER the whole family tree.
-          // This makes the new task appear ABOVE the family tree in the LIFO visual list.
           if (t.parentId === focusTask.id || isDescendant(t.id, focusTask.id)) {
               i++;
           } else {
-              // Found a task that is NOT a descendant (sibling or parent or unrelated)
               break;
           }
       }
@@ -176,7 +227,6 @@ const App: React.FC = () => {
 
   const handleAddSubStack = (name: string) => {
     setParentTask(prev => {
-      // If there is currently NO active stack, this new one becomes active immediately.
       const hasActive = prev.subStacks.some(s => s.status === 'active');
       const newStatus: SubStackStatus = hasActive ? 'pending' : 'active';
 
@@ -196,10 +246,10 @@ const App: React.FC = () => {
   const handlePushTask = (name: string) => {
     if (!activeSubStack) {
       if (parentTask.subStacks.length === 0) {
-          alert("Please create a sub-stack first (press 'n')");
+          showAlert("NO STACK FOUND", "Please create a sub-stack first (press 'n')");
           return;
       }
-      alert("No active stack to push to. Use '[' or ']' to select a stack.");
+      showAlert("NO ACTIVE STACK", "No active stack to push to.\nUse '[' or ']' to select a stack.");
       return;
     }
 
@@ -209,15 +259,9 @@ const App: React.FC = () => {
           const tasks = s.tasks;
           const focusIndex = tasks.findIndex(t => t.id === focusedTaskId);
           
-          // Insert Logic: "Interrupt" -> Insert ABOVE the focused task AND its visual children.
-          // This prevents the new task from getting "stuck" under the subtasks visually.
           const insertIndex = findInsertionIndexForInterrupt(tasks, focusIndex);
-
-          // Context Logic: Inherit parent from focused task (Sibling)
           const focusTask = focusIndex !== -1 ? tasks[focusIndex] : null;
           const topTask = tasks.length > 0 ? tasks[tasks.length - 1] : null;
-          
-          // If we have focus, we inherit its parent (Sibling). If no focus, top task's parent.
           const inheritedParentId = focusTask ? focusTask.parentId : (topTask ? topTask.parentId : undefined);
 
           const newTask = { 
@@ -228,7 +272,6 @@ const App: React.FC = () => {
               createdAt: Date.now() 
           };
           
-          // Auto-focus the new task
           setTimeout(() => setFocusedTaskId(newTask.id), 0);
 
           const newTasks = [...tasks];
@@ -251,11 +294,7 @@ const App: React.FC = () => {
         if (s.id === activeSubStack.id) {
           const tasks = s.tasks;
           const focusIndex = tasks.findIndex(t => t.id === focusedTaskId);
-          
-          // Breakdown Logic: Insert ABOVE focused task branch (it becomes a prerequisite/child)
           const insertIndex = findInsertionIndexForInterrupt(tasks, focusIndex);
-          
-          // Parent is the FOCUSED task (or top if none)
           const targetTask = focusIndex !== -1 ? tasks[focusIndex] : (tasks.length > 0 ? tasks[tasks.length - 1] : null);
 
           const newTask = { 
@@ -267,10 +306,8 @@ const App: React.FC = () => {
           };
           
           setTimeout(() => setFocusedTaskId(newTask.id), 0);
-
           const newTasks = [...tasks];
           newTasks.splice(insertIndex, 0, newTask);
-
           return { ...s, tasks: newTasks };
         }
         return s;
@@ -288,14 +325,8 @@ const App: React.FC = () => {
             if (s.id === activeSubStack.id) {
                 const tasks = s.tasks;
                 const focusIndex = tasks.findIndex(t => t.id === focusedTaskId);
-                
-                // Queue Logic: Insert BELOW focused task (Before it in array index)
                 const effectiveFocusIndex = focusIndex !== -1 ? focusIndex : Math.max(0, tasks.length - 1);
-                
-                // If array is empty, index 0.
                 const insertIndex = tasks.length === 0 ? 0 : effectiveFocusIndex;
-
-                // Inherit parent from focused task (Sibling)
                 const focusTask = effectiveFocusIndex >= 0 ? tasks[effectiveFocusIndex] : null;
                 const inheritedParentId = focusTask ? focusTask.parentId : undefined;
 
@@ -308,10 +339,8 @@ const App: React.FC = () => {
                 };
                 
                 setTimeout(() => setFocusedTaskId(newTask.id), 0);
-
                 const newTasks = [...tasks];
                 newTasks.splice(insertIndex, 0, newTask);
-
                 return { ...s, tasks: newTasks };
             }
             return s;
@@ -324,14 +353,8 @@ const App: React.FC = () => {
   const handleCompleteTask = () => {
     if (!activeSubStack) return;
     
-    // Modification: If focused task is NOT the top task, user probably wants to complete THAT specific task.
-    // Standard stack behavior is pop top. But UI allows selection. 
-    // To respect "newly focused one should be the running one", we allow completing the focus.
-    
-    // Default to Top
     let taskToCompleteId = activeSubStack.tasks[activeSubStack.tasks.length - 1]?.id;
 
-    // If focus is valid and in this stack, use focus
     if (focusedTaskId && activeSubStack.tasks.some(t => t.id === focusedTaskId)) {
         taskToCompleteId = focusedTaskId;
     }
@@ -342,7 +365,6 @@ const App: React.FC = () => {
     setParentTask(prev => {
       const newStacks = prev.subStacks.map(s => {
         if (s.id === activeSubStack.id) {
-          // Remove the task by ID
           const newTasks = s.tasks.filter(t => t.id !== taskToCompleteId);
           let newStatus: SubStackStatus = s.status;
           
@@ -392,10 +414,8 @@ const App: React.FC = () => {
     const targetStackId = item.targetSubStackId || activeSubStack?.id;
     
     setParentTask(prev => {
-        // Find best candidate for activation if strictly needed
         let idToActivate = activeSubStack?.id;
         
-        // If we are currently idle/complete, or switching context
         if (!idToActivate || (targetStackId && targetStackId !== idToActivate)) {
              if (targetStackId && prev.subStacks.some(s => s.id === targetStackId)) {
                  idToActivate = targetStackId;
@@ -411,14 +431,12 @@ const App: React.FC = () => {
             
             let updatedStack = { ...s };
 
-            // Manage Activation
             if (shouldBeActive && s.status !== 'completed' && s.status !== 'active' && s.status !== 'archived') {
                 updatedStack.status = 'active';
             } else if (s.status === 'active' && !shouldBeActive) {
                 updatedStack.status = 'pending';
             }
 
-            // Restore Task Logic
             if (isTargetStack) {
                 updatedStack.tasks = [...updatedStack.tasks, { 
                     id: generateId(), 
@@ -427,10 +445,8 @@ const App: React.FC = () => {
                     createdAt: Date.now() 
                 }];
             }
-
             return updatedStack;
         });
-
         return { ...prev, subStacks: newStacks };
     });
 
@@ -447,7 +463,6 @@ const App: React.FC = () => {
           const isFrozen = stackToToggle.status === 'frozen';
           
           if (isFrozen) {
-              // UNFREEZE -> ACTIVATE
               const newStacks = prev.subStacks.map(s => {
                   if (s.id === stackId) return { ...s, status: 'active' as SubStackStatus };
                   if (s.status === 'active') return { ...s, status: 'pending' as SubStackStatus };
@@ -456,13 +471,11 @@ const App: React.FC = () => {
               addLog('freeze', `Unfroze and activated stack: ${stackToToggle.name}`);
               return { ...prev, subStacks: newStacks };
           } else {
-              // FREEZE
               const newStacks = prev.subStacks.map(s => {
                   if (s.id === stackId) return { ...s, status: 'frozen' as SubStackStatus };
                   return s;
               });
 
-              // If we froze the active one, auto-activate next pending
               if (stackToToggle.status === 'active') {
                   const nextCandidate = newStacks.find(s => s.status === 'pending');
                   if (nextCandidate) {
@@ -568,6 +581,12 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (modalConfig.isOpen) {
+          if (e.key === 'Escape') modalConfig.onCancel();
+          if (e.key === 'Enter') modalConfig.onConfirm();
+          return; // Block other shortcuts when modal is open
+      }
+
       if (inputMode !== 'NONE') return;
       if (!isCommandMode) return;
 
@@ -627,10 +646,9 @@ const App: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [inputMode, activeSubStack, isCommandMode, parentTask.subStacks, focusedTaskId, viewMode]);
+  }, [inputMode, activeSubStack, isCommandMode, parentTask.subStacks, focusedTaskId, viewMode, modalConfig]);
 
   const getPrompt = () => {
-    // Helper to get focus name
     const focusTask = activeSubStack?.tasks.find(t => t.id === focusedTaskId);
     const focusName = focusTask ? focusTask.name : 'TOP';
 
@@ -646,7 +664,7 @@ const App: React.FC = () => {
 
   return (
     <TerminalWindow title={parentTask.name}>
-      <div className="flex flex-col h-full">
+      <div className="flex flex-col h-full relative">
         <div className="flex-1 overflow-hidden relative">
            {viewMode === 'HOME' && (
              <HomeView 
@@ -685,7 +703,7 @@ const App: React.FC = () => {
               <SystemView 
                  onExport={handleSystemExport}
                  onImport={handleSystemImport}
-                 onReset={handleSystemReset}
+                 onReset={handleSystemResetRequest}
                  lastSaveTime={lastSaveTime}
               />
            )}
@@ -703,6 +721,16 @@ const App: React.FC = () => {
           prompt={getPrompt()}
           onSubmit={handleInputSubmit}
           onCancel={() => setInputMode('NONE')}
+        />
+
+        {/* CUSTOM POPUP MODAL */}
+        <PopupModal 
+          isOpen={modalConfig.isOpen}
+          type={modalConfig.type}
+          title={modalConfig.title}
+          message={modalConfig.message}
+          onConfirm={modalConfig.onConfirm}
+          onCancel={modalConfig.onCancel}
         />
       </div>
     </TerminalWindow>
