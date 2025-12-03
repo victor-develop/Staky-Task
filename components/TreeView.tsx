@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { ParentTask, SubStack, Task } from '../types';
-import { Lock, Circle, Archive, Play, Check, Snowflake, MousePointer2 } from 'lucide-react';
+import { Lock, Archive, Play, Check, Snowflake, MousePointer2 } from 'lucide-react';
 
 interface TreeViewProps {
   parentTask: ParentTask;

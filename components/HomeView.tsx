@@ -76,7 +76,7 @@ const HomeView: React.FC<HomeViewProps> = ({ parentTask, activeSubStack, focused
         )}
 
         <div className="flex flex-col items-start w-full space-y-3 pb-10 pt-4">
-            {displayTasks.map((t, idx) => {
+            {displayTasks.map((t) => {
                 const isFocused = t.id === focusedTaskId; // The one user selected (and "active")
                 const depth = taskDepths.get(t.id) || 0;
                 
